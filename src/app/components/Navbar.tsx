@@ -13,9 +13,13 @@ export default function NavBar({}: Props) {
           <MdSunny className="sun" />
         </div>
         <section className="nav-inner-right">
-          <IoMdLocate className="location"/>
-          <IoLocation className="pin" />
-          <p className="">Nigeria</p>
+          <IoMdLocate className="location" />
+
+          <p className="">
+            {" "}
+            <IoLocation className="pin" />
+            Nigeria
+          </p>
           <SearchBox />
         </section>
       </div>

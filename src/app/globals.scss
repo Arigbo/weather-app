@@ -1,7 +1,17 @@
 /* @tailwind base;
 @tailwind components;
 @tailwind utilities; */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family:'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
+}
+body {
+  background-color: whitesmoke;
+}
 .nav {
+  background-color: white;
   position: sticky;
   right: 0;
   left: 0;
@@ -14,16 +24,66 @@
     align-items: center;
     justify-content: space-between;
     width: 90%;
-    &-left{
+    &-left {
       display: flex;
       align-items: center;
-      .sun{
+      .sun {
         color: yellow;
       }
     }
-    &-right{
+    &-right {
       display: flex;
       align-items: center;
+      gap: 0.5rem;
+      .location,button{
+        cursor: pointer;
+      }
+      .location{
+        font-size: 1.5rem;
+        &:hover{
+          color: rgb(138, 132, 132);
+        }
+      }
+      p {
+        display: flex;
+        align-items: center;
+      }
+      form {
+        display: flex;
+        align-items: center;
+        input {
+          display: flex;
+          align-items: center;
+          width: 100%;
+          height: 1.8rem;
+          padding-inline: 0.5rem;
+          border-radius: 0;
+          border: 1px solid;
+          border-right: 0;
+          border-bottom-left-radius: 0.2rem;
+          border-top-left-radius: 0.2rem;
+        }
+        button {
+          width: fit-content;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          height: 1.8rem;
+          padding-inline: 0.5rem;
+          background-color: blue;
+          border: 0;
+          border-radius: 0;
+          border-bottom-right-radius: 0.2rem;
+          border-top-right-radius: 0.2rem;
+          .search {
+            width: 1rem;
+            color: white;
+          }
+          &:hover{
+            background-color: rgb(7, 7, 151);
+          }
+        }
+      }
     }
   }
 }
