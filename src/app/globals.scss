@@ -1,0 +1,29 @@
+/* @tailwind base;
+@tailwind components;
+@tailwind utilities; */
+.nav {
+  position: sticky;
+  right: 0;
+  left: 0;
+  top: 0;
+  display: flex;
+  height: 3rem;
+  justify-content: center;
+  &-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 90%;
+    &-left{
+      display: flex;
+      align-items: center;
+      .sun{
+        color: yellow;
+      }
+    }
+    &-right{
+      display: flex;
+      align-items: center;
+    }
+  }
+}
