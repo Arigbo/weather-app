@@ -6,6 +6,8 @@ type Props = {
   value: string;
   onChange: React.ChangeEventHandler<HTMLInputElement> | undefined;
   onSubmit: React.FormEventHandler<HTMLFormElement> | undefined;
+  setSearch: any;
+  search: any;
 };
 export default function SearchBox(props: Props) {
   return (
@@ -16,11 +18,14 @@ export default function SearchBox(props: Props) {
     >
       <input
         type="text"
-        onChange={props.onChange}
         placeholder="Search Location"
+        value={props.search}
+        onChange={(e) => {
+          props.onChange, props.setSearch(e.target.value);
+        }}
       />
       <button className="">
-        <FaSearch className="search"/>
+        <FaSearch className="search" />
       </button>
     </form>
   );

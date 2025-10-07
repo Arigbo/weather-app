@@ -1,10 +1,18 @@
-import React from "react";
+"use client";
+import React, { useState } from "react";
 import { IoMdLocate } from "react-icons/io";
 import { IoLocation } from "react-icons/io5";
 import { MdSunny } from "react-icons/md";
 import SearchBox from "./Searchbox";
-type Props = {};
-export default function NavBar({}: Props) {
+  var location= "alakahia";
+type Props = {
+  onClick: React.MouseEventHandler<SVGElement> | undefined;
+  search:undefined
+  location: string;
+};
+export default function NavBar(props: Props) {
+  const [search, setSearch] = useState();
+
   return (
     <nav className="nav">
       <div className="nav-inner">
@@ -13,14 +21,17 @@ export default function NavBar({}: Props) {
           <MdSunny className="sun" />
         </div>
         <section className="nav-inner-right">
-          <IoMdLocate className="location" />
-
+          <IoMdLocate
+            className="location"
+            title="Your Location"
+            onClick={() => setSearch(location)}
+          />
           <p className="">
             {" "}
             <IoLocation className="pin" />
-            Nigeria
+            {search}
           </p>
-          <SearchBox />
+          <SearchBox setSearch={setSearch} search={search} />
         </section>
       </div>
     </nav>
