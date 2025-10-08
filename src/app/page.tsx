@@ -1,7 +1,7 @@
 "use client";
 import NavBar from "./components/Navbar";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import axios from "axios";
 import { format, fromUnixTime, parseISO } from "date-fns";
 import Container from "./components/container";
@@ -13,6 +13,8 @@ import WeatherDetails from "./components/weatherDetails";
 import { metersToKilometers } from "@/utils/metersToKilometer";
 import { converWindSpeed } from "@/utils/convertwindspeed";
 import ForeCastWeatherDetail from "./components/forcastweather";
+import { loadingCityAtom, placeAtom } from "./atoms";
+import { useAtom } from "jotai";
 /**
  * TypeScript Interfaces for the 5-Day / 3-Hour Forecast API response structure.
  * Generated from the provided JSON data sample.
@@ -108,7 +110,7 @@ export interface ForecastResponse {
 export interface Homepage {
   search?: string;
   finalDailyForecasts: ForecastListItem[] | undefined;
-  timezoneOffset:  number | undefined
+  timezoneOffset: number | undefined;
   firstData?: ForecastListItem;
   formatLocalTime: (utcTimestamp: number, timezoneOffset: number) => string;
   formatDayName: (utcTimestamp: number, timezoneOffset: number) => string;
@@ -116,18 +118,21 @@ export interface Homepage {
 }
 
 export default function Home(props: Homepage) {
-  const [search, setSearch] = useState();
-  const { isPending, error, data } = useQuery<ForecastResponse>({
+  const [place, setPlace] = useAtom(placeAtom);
+  const [_, setLoadCity] = useAtom(loadingCityAtom);
+
+  const { isPending, error, data, refetch } = useQuery<ForecastResponse>({
     queryKey: ["repoData"],
     queryFn: async () => {
       const { data } = await axios.get(
-        `https://api.openweathermap.org/data/2.5/forecast?q=${
-          search == undefined ? "port+harcourt" : search
-        }&appid=${process.env.NEXT_PUBLIC_WEATHER_API}`
+        `https://api.openweathermap.org/data/2.5/forecast?q=${place}&appid=${process.env.NEXT_PUBLIC_WEATHER_API}`
       );
       return data;
     },
   });
+  useEffect(() => {
+    refetch();
+  }, [place, refetch]);
   const firstData = data?.list[0];
   console.log("data", data?.city.name);
   const formatLocalTime = (
@@ -207,7 +212,7 @@ export default function Home(props: Homepage) {
   if (isPending) return "Loading...";
   return (
     <div className="flex flex-col gap-4 bg-gray-100 min-h-screen">
-      <NavBar setSearch={setSearch} search={search} />
+      <NavBar location={data?.city.name} />
       <main>
         <section>
           <header>
@@ -289,9 +294,12 @@ export default function Home(props: Homepage) {
                 date={
                   d === finalDailyForecasts[0]
                     ? "Today"
-                    : formatDayName(d?.dt, props.timezoneOffset??0).substring(0, 3)
+                    : formatDayName(d?.dt, props.timezoneOffset ?? 0).substring(
+                        0,
+                        3
+                      )
                 }
-                day={formatFullDate(d?.dt, props.timezoneOffset??0)}
+                day={formatFullDate(d?.dt, props.timezoneOffset ?? 0)}
                 feels_like={d?.main.feels_like ?? 0}
                 temp={d?.main.temp ?? 0}
                 temp_max={d?.main.temp_max ?? 0}

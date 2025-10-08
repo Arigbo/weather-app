@@ -5,12 +5,16 @@ import { IoLocation } from "react-icons/io5";
 import { MdSunny } from "react-icons/md";
 import SearchBox from "./Searchbox";
 import axios from "axios";
+import { useAtom } from "jotai";
+import { loadingCityAtom, placeAtom } from "../atoms";
 
-export default function NavBar() {
+export default function NavBar({ location }: { location?: string }) {
   const [city, setCity] = useState("");
   const [error, setError] = useState("");
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [place, setPlace] = useAtom(placeAtom);
+  const [_, setLoadCity] = useAtom(loadingCityAtom);
   async function handleInput(value: string) {
     setCity(value);
     if (value.length >= 3) {
@@ -33,17 +37,43 @@ export default function NavBar() {
       setError("");
     }
   }
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    setLoadCity(true);
     e.preventDefault();
     if (suggestions.length == 0) {
       setError("location not found");
+      setLoadCity(false);
     } else {
-      setShowSuggestions(false);
+      setError("");
+      setTimeout(() => {
+        setShowSuggestions(false);
+        setLoadCity(false);
+        setPlace(city);
+      }, 500);
     }
-  };
+  }
   function onSelectSuggestion(value: string) {
     setCity(value);
     setShowSuggestions(false);
+  }
+  function handCurrentLocation() {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(async (position) => {
+        const { latitude, longitude } = position.coords;
+        try {
+          setLoadCity(true);
+          const response = await axios.get(
+            `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=${process.env.NEXT_PUBLIC_WEATHER_API}`
+          );
+          setTimeout(() => {
+            setLoadCity(false)
+            setPlace(response.data.name)
+          }, 500);
+        } catch (error) {
+            setLoadCity(false)
+        }
+      });
+    }
   }
   return (
     <nav className="nav">
@@ -53,26 +83,30 @@ export default function NavBar() {
           <MdSunny className="sun" />
         </div>
         <section className="nav-inner-right">
-          <IoMdLocate className="location" title="Your Location" />
+          <IoMdLocate
+            className="location"
+            title="Your Current Location"
+            onClick={handCurrentLocation}
+          />
           <p className="">
             {" "}
             <IoLocation className="pin" />
-            {city}
+            {location}
           </p>
           <SearchBox
             value={city}
             onChange={(e) => handleInput(e.target.value)}
             className="searchbox"
-            onSubmit={(e) => handleSubmit}
+            onSubmit={handleSubmit}
           />
         </section>
         <SuggestionBox
           {...{ showSuggestions, suggestions, onSelectSuggestion, error }}
         />
       </div>
-      {/* <div className="error-container">
+      <div className="error-container">
         {error && <p className="error-message">{error}</p>}
-      </div> */}
+      </div>
     </nav>
   );
 }
