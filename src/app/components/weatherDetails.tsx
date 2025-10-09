@@ -55,7 +55,7 @@ export interface SingleWeatherDetailsProps {
 }
 function SingleWeatherDetails(props: SingleWeatherDetailsProps) {
   return (
-    <div>
+    <div className="weather-details">
       <p>{props.information}</p>
       <div>{props.icon}</div>
       <p>{props.value}</p>

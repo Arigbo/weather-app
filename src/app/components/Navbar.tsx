@@ -124,7 +124,7 @@ function SuggestionBox({
   return (
     <>
       {((showSuggestions && suggestions.length > 1) || error) && (
-        <ul>
+        <ul className="suggestion-box">
           {error && suggestions.length < 1 && <li>{error}</li>}
           {suggestions.map((d, i) => (
             <li key={i} onClick={() => onSelectSuggestion(d)}>

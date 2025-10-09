@@ -17,23 +17,34 @@ export default function ForeCastWeatherDetail(
   props: ForeCastWeatherDetailProps
 ) {
   return (
-    <Container>
-      <section>
-        <div>
-          <WeatherIcon iconName={props.weatherIcon} />
-          <p>{props.date}</p>
-          <p>{props.day}</p>
-          <p>{convertKelToCels(props.temp ?? 0)}degree</p>
-          <p>
-            <span>Feels like</span>
-            <span>{convertKelToCels(props.feels_like ?? 0)}degree</span>
-          </p>
-          <p>{props.description}</p>
+    <Container className="container forecast">
+      <div className="container-inner">
+        <div className="left">
+          <div className="left-inner">
+            <div className="left-inner-left">
+              <div className="image-container">
+                <WeatherIcon iconName={props.weatherIcon} />
+              </div>
+              <p>{props.date}</p>
+              <p>{props.day}</p>
+            </div>
+            <div className="left-inner-right">
+              {" "}
+              <p className="temp">{convertKelToCels(props.temp ?? 0)}°</p>
+              <p className="feels-like">
+                <span>Feels like</span>
+                <span>{convertKelToCels(props.feels_like ?? 0)}°</span>
+              </p>
+              <p>{props.description}</p>
+            </div>
+          </div>
         </div>
-      </section>
-      <section>
-        <WeatherDetails {...props}/>
-      </section>
+        <div className="weather-details-container">
+          <div className="weather-details-container-inner">
+            <WeatherDetails {...props} />
+          </div>
+        </div>
+      </div>
     </Container>
   );
 }
