@@ -211,7 +211,7 @@ export default function Home(props: Homepage) {
         <>
           {error ? (
             <h1 className="network-error">
-              Network error, Try again or refresh page.  Also check your internet
+              Network error, Try again or refresh page. Also check your internet
               connection;
             </h1>
           ) : (
