@@ -13,8 +13,9 @@ import WeatherDetails from "./components/weatherDetails";
 import { metersToKilometers } from "@/utils/metersToKilometer";
 import { converWindSpeed } from "@/utils/convertwindspeed";
 import ForeCastWeatherDetail from "./components/forcastweather";
-import { loadingCityAtom, placeAtom } from "./atoms";
+import { isLoadingLocationAtom, loadingCityAtom, placeAtom } from "./atoms";
 import { useAtom } from "jotai";
+import { is } from "date-fns/locale";
 /**
  * TypeScript Interfaces for the 5-Day / 3-Hour Forecast API response structure.
  * Generated from the provided JSON data sample.
@@ -120,7 +121,9 @@ const apiKey = process.env.NEXT_PUBLIC_WEATHER_API;
 export default function Home(props: Homepage) {
   const [place, setPlace] = useAtom(placeAtom);
   const [_, setLoadCity] = useAtom(loadingCityAtom);
-
+  const [isLoadingLocation, setIsLoadingLocation] = useAtom(
+    isLoadingLocationAtom
+  );
   const { isPending, error, data, refetch } = useQuery<ForecastResponse>({
     queryKey: ["repoData"],
     queryFn: async () => {
@@ -133,23 +136,43 @@ export default function Home(props: Homepage) {
   useEffect(() => {
     refetch();
     setLoadCity(false);
-    setTimeout(() => {   
+    setTimeout(() => {
       setLoadCity(false);
     }, 500);
-    if (!place) {
-      setPlace(place);
+    if (!place && !isLoadingLocation) {
+      setIsLoadingLocation(true);
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(async (position) => {
+          const { latitude, longitude } = position.coords;
+          try {
+            setLoadCity(true);
+            const response = await axios.get(
+              `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=${apiKey}`
+            );
+            setPlace(response.data.name);
+            setIsLoadingLocation(false);
+            setTimeout(() => {
+              setLoadCity(false);
+            }, 500);
+          } catch (error) {
+            setIsLoadingLocation(false);
+            setLoadCity(false);
+          }
+        });
+      } else {
+        setIsLoadingLocation(false);
+      }
       refetch();
-      setLoadCity(false);
-     }
+    }
   }, [place, refetch]);
   const firstData = data?.list[0];
   console.log("data", data?.city.name);
-// if(data){
-//     setTimeout(() => {
-//     setLoadCity(false);
-//     isPending;
-//   }, 500);
-// }
+  // if(data){
+  //     setTimeout(() => {
+  //     setLoadCity(false);
+  //     isPending;
+  //   }, 500);
+  // }
 
   /** * Formats a UTC Unix timestamp into a full day name (e.g., Saturday).
    * This replaces the "EEEE" format from the original problematic code.
