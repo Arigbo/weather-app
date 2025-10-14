@@ -238,7 +238,9 @@ export default function Home(props: Homepage) {
       {isPending ? (
         <h2 className="loading">Loading</h2>
       ) : (
-        <>
+  isLoadingLocation ? (
+    <h2 className="loading">Fetching location...</h2>):
+          <>
           {error ? (
             <h1 className="network-error">
               Network error, Try again or refresh page. Also check your internet
