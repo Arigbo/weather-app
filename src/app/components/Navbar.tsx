@@ -15,12 +15,13 @@ export default function NavBar({ location }: { location?: string }) {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [place, setPlace] = useAtom(placeAtom);
   const [_, setLoadCity] = useAtom(loadingCityAtom);
+  const apiKey = process.env.NEXT_PUBLIC_WEATHER_API;
   async function handleInput(value: string) {
     setCity(value);
     if (value.length >= 3) {
       try {
         const response = await axios.get(
-          `https://api.openweathermap.org/data/2.5/find?q=${value}&appid=${process.env.NEXT_PUBLIC_WEATHER_API}`
+          `https://api.openweathermap.org/data/2.5/find?q=${value}&appid=${apiKey}`
         );
         const suggestions = response.data?.list.map((item: any) => item.name);
         setSuggestions(suggestions);
@@ -63,7 +64,7 @@ export default function NavBar({ location }: { location?: string }) {
         try {
           setLoadCity(true);
           const response = await axios.get(
-            `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=${process.env.NEXT_PUBLIC_WEATHER_API}`
+            `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=${apiKey}`
           );
           setTimeout(() => {
             setLoadCity(false)

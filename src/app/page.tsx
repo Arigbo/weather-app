@@ -116,7 +116,7 @@ export interface Homepage {
   formatDayName: (utcTimestamp: number, timezoneOffset: number) => string;
   formatFullDate: (utcTimestamp: number, timezoneOffset: number) => string;
 }
-
+const apiKey = process.env.NEXT_PUBLIC_WEATHER_API;
 export default function Home(props: Homepage) {
   const [place, setPlace] = useAtom(placeAtom);
   const [_, setLoadCity] = useAtom(loadingCityAtom);
@@ -125,7 +125,7 @@ export default function Home(props: Homepage) {
     queryKey: ["repoData"],
     queryFn: async () => {
       const { data } = await axios.get(
-        `https://api.openweathermap.org/data/2.5/forecast?q=${place}&appid=${process.env.NEXT_PUBLIC_WEATHER_API}`
+        `https://api.openweathermap.org/data/2.5/forecast?q=${place}&appid=${apiKey}`
       );
       return data;
     },
