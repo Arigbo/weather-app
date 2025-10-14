@@ -3,7 +3,7 @@ import NavBar from "./components/Navbar";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 import axios from "axios";
-import { format, fromUnixTime, parseISO, set } from "date-fns";
+import { format, fromUnixTime, parseISO } from "date-fns";
 import Container from "./components/container";
 import convertKelToCels from "@/utils/kelstocels";
 import { BiArrowFromBottom, BiArrowFromTop } from "react-icons/bi";
@@ -15,7 +15,6 @@ import { converWindSpeed } from "@/utils/convertwindspeed";
 import ForeCastWeatherDetail from "./components/forcastweather";
 import { loadingCityAtom, placeAtom } from "./atoms";
 import { useAtom } from "jotai";
-import { tr } from "date-fns/locale";
 /**
  * TypeScript Interfaces for the 5-Day / 3-Hour Forecast API response structure.
  * Generated from the provided JSON data sample.
@@ -134,16 +133,15 @@ export default function Home(props: Homepage) {
   useEffect(() => {
     refetch();
     setLoadCity(false);
-    setPlace(place);
   }, [place, refetch]);
   const firstData = data?.list[0];
   console.log("data", data?.city.name);
-  // if(data){
-  //     setTimeout(() => {
-  //     setLoadCity(false);
-  //     isPending;
-  //   }, 500);
-  // }
+// if(data){
+//     setTimeout(() => {
+//     setLoadCity(false);
+//     isPending;
+//   }, 500);
+// }
 
   /** * Formats a UTC Unix timestamp into a full day name (e.g., Saturday).
    * This replaces the "EEEE" format from the original problematic code.

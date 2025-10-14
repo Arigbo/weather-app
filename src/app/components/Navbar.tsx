@@ -41,7 +41,7 @@ export default function NavBar({ location }: { location?: string }) {
     setLoadCity(true);
     e.preventDefault();
     if (suggestions.length == 0) {
-      setError("location not found");
+      setError("Location not found");
       setLoadCity(false);
     } else {
       setError("");
@@ -71,6 +71,7 @@ export default function NavBar({ location }: { location?: string }) {
           }, 500);
         } catch (error) {
             setLoadCity(false)
+            setError("Network Error, Refresh or try again")
         }
       });
     }
