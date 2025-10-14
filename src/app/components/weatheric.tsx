@@ -4,7 +4,7 @@ export default function WeatherIcon(
   props: React.HTMLProps<HTMLDivElement> & { iconName: string }
 ) {
   return (
-    <div {...props} className={`weather-icon ${props.className ?? ""}`}>
+    <div>
       <Image
         alt="weather icon"
         className="image"
