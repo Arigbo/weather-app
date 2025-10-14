@@ -133,6 +133,7 @@ export default function Home(props: Homepage) {
   useEffect(() => {
     refetch();
     setLoadCity(false);
+    setPlace(place);
   }, [place, refetch]);
   const firstData = data?.list[0];
   console.log("data", data?.city.name);
