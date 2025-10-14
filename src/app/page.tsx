@@ -137,7 +137,7 @@ export default function Home(props: Homepage) {
       setLoadCity(false);
     }, 500);
     if (!place) {
-      setPlace("London");
+      setPlace(place);
       refetch();
       setLoadCity(false);
      }
