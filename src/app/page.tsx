@@ -346,7 +346,7 @@ export default function Home(props: Homepage) {
                 </section>
                 <section>
                   <header>
-                    <span> Forest</span> <span>(7 Days)</span>
+                    <span> Forecast</span> <span>(7 Days)</span>
                   </header>
                   {finalDailyForecasts?.map((d, i) => (
                     <ForeCastWeatherDetail
