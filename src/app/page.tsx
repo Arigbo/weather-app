@@ -87,8 +87,6 @@ export interface ForecastListItem {
   sys: ForecastSys;
   dt_txt: string; // Time of data forecasted, ISO format (e.g., "2025-10-08 00:00:00")
 }
-
-/** Geographical and historical information about the city. */
 export interface City {
   id: number;
   name: string;
@@ -167,16 +165,7 @@ export default function Home(props: Homepage) {
   }, [place, refetch]);
   const firstData = data?.list[0];
   console.log("data", data?.city.name);
-  // if(data){
-  //     setTimeout(() => {
-  //     setLoadCity(false);
-  //     isPending;
-  //   }, 500);
-  // }
 
-  /** * Formats a UTC Unix timestamp into a full day name (e.g., Saturday).
-   * This replaces the "EEEE" format from the original problematic code.
-   */
   const formatDayName = (
     utcTimestamp: number,
     timezoneOffset: number
@@ -189,18 +178,12 @@ export default function Home(props: Homepage) {
       timeZone: "UTC",
     });
   };
-
-  /** * Formats a UTC Unix timestamp into a full date string (e.g., 28.10.2023).
-   * This replaces the "dd.MM.yyyy" format from the original problematic code.
-   */
   const formatFullDate = (
     utcTimestamp: number,
     timezoneOffset: number
   ): string => {
     const localMilliseconds = (utcTimestamp + timezoneOffset) * 1000;
     const date = new Date(localMilliseconds);
-
-    // Use 'en-GB' for day/month/year format and replace '/' with '.'
     return date
       .toLocaleDateString("en-GB", {
         year: "numeric",
@@ -214,16 +197,11 @@ export default function Home(props: Homepage) {
   const uniqueDays = new Set<string>();
   const finalDailyForecasts = data?.list
     .filter((item) => {
-      // Use the full day name for accurate day comparison
       const currentDay = formatDayName(item.dt, props.timezoneOffset ?? 0);
-
-      // Always include the first item for today's forecast
       if (uniqueDays.size === 0 && uniqueDays.add(currentDay)) {
         return true;
       }
-
-      // For subsequent days, we try to grab the 12:00:00 sample for consistency
-      const isNoon = item.dt_txt.includes("12:00:00");
+ const isNoon = item.dt_txt.includes("12:00:00");
 
       if (isNoon && !uniqueDays.has(currentDay) && uniqueDays.add(currentDay)) {
         return true;
@@ -231,7 +209,7 @@ export default function Home(props: Homepage) {
 
       return false;
     })
-    .slice(0, 5); // Ensure a maximum of 5 days
+    .slice(0, 7); // Ensure a maximum of 5 days
 
   return (
     <>
