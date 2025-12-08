@@ -1,365 +1,372 @@
 "use client";
-import NavBar from "./components/Navbar";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useCallback, useMemo } from "react";
+import { useAtom } from "jotai";
 import axios from "axios";
 import { format, fromUnixTime, parseISO } from "date-fns";
+
+import NavBar from "./components/Navbar";
 import Container from "./components/container";
-import convertKelToCels from "@/utils/kelstocels";
-import { BiArrowFromBottom, BiArrowFromTop } from "react-icons/bi";
 import WeatherIcon from "./components/weatheric";
-import getDayorNightIcon from "@/utils/getDayorNight";
 import WeatherDetails from "./components/weatherDetails";
+import ForeCastWeatherDetail from "./components/forcastweather";
+import { BiArrowFromBottom, BiArrowFromTop } from "react-icons/bi";
+
+import { isLoadingLocationAtom, loadingCityAtom, placeAtom } from "./atoms";
+import convertKelToCels from "@/utils/kelstocels";
+import getDayorNightIcon from "@/utils/getDayorNight";
 import { metersToKilometers } from "@/utils/metersToKilometer";
 import { converWindSpeed } from "@/utils/convertwindspeed";
-import ForeCastWeatherDetail from "./components/forcastweather";
-import { isLoadingLocationAtom, loadingCityAtom, placeAtom } from "./atoms";
-import { useAtom } from "jotai";
-import { is } from "date-fns/locale";
-/**
- * TypeScript Interfaces for the 5-Day / 3-Hour Forecast API response structure.
- * Generated from the provided JSON data sample.
- */
 
-// --- Reusable Core Interfaces ---
-
-/** Geographical coordinates (Latitude and Longitude). */
+// --- Types ---
 export interface Coord {
   lat: number;
   lon: number;
 }
 
-/** Weather condition details (ID, brief description, full description, and icon code). */
 export interface Weather {
   id: number;
-  main: string; // e.g., "Rain", "Clouds"
-  description: string; // e.g., "light rain", "overcast clouds"
+  main: string;
+  description: string;
   icon: string;
 }
 
-/** Wind speed, direction, and gust. */
 export interface Wind {
-  speed: number; // m/s
-  deg: number; // degrees
-  gust: number; // m/s
+  speed: number;
+  deg: number;
+  gust: number;
 }
 
-/** Cloudiness percentage. */
 export interface Clouds {
-  all: number; // Cloudiness (%)
+  all: number;
 }
 
-/** Rain volume for the last 3 hours (only present if there is rain). */
 export interface Rain {
-  "3h": number; // Rain volume for the last 3 hours (mm)
+  "3h": number;
 }
 
-/** System internal parameter indicating part of the day (day 'd' or night 'n'). */
 export interface ForecastSys {
   pod: string;
 }
 
-/** Main temperature and atmospheric data for a 3-hour period. */
 export interface Main {
-  temp: number; // Temperature (Kelvin)
-  feels_like: number; // Feels like temperature (Kelvin)
-  temp_min: number; // Minimum temp in 3h block (Kelvin)
-  temp_max: number; // Maximum temp in 3h block (Kelvin)
-  pressure: number; // Atmospheric pressure (hPa)
-  sea_level: number; // Atmospheric pressure on the sea level (hPa)
-  grnd_level: number; // Atmospheric pressure on the ground level (hPa)
-  humidity: number; // Humidity (%)
-  temp_kf: number; // Internal temperature parameter
+  temp: number;
+  feels_like: number;
+  temp_min: number;
+  temp_max: number;
+  pressure: number;
+  sea_level: number;
+  grnd_level: number;
+  humidity: number;
+  temp_kf: number;
 }
 
-// --- Forecast-Specific Interfaces ---
-
-/** Structure for a single 3-hour forecast entry within the list. */
 export interface ForecastListItem {
-  dt: number; // Time of data forecasted, Unix, UTC
+  dt: number;
   main: Main;
   weather: Weather[];
   clouds: Clouds;
   wind: Wind;
-  visibility: number; // Visibility (meters)
-  pop: number; // Probability of precipitation (0 to 1)
-  rain?: Rain; // Optional: only present if rain is forecasted
+  visibility: number;
+  pop: number;
+  rain?: Rain;
   sys: ForecastSys;
-  dt_txt: string; // Time of data forecasted, ISO format (e.g., "2025-10-08 00:00:00")
+  dt_txt: string;
 }
+
 export interface City {
   id: number;
   name: string;
   coord: Coord;
   country: string;
   population: number;
-  timezone: number; // Shift in seconds from UTC
-  sunrise: number; // Sunrise time, Unix, UTC
-  sunset: number; // Sunset time, Unix, UTC
+  timezone: number;
+  sunrise: number;
+  sunset: number;
 }
 
-/** The root interface for the entire 5-day/3-hour forecast response. */
 export interface ForecastResponse {
-  cod: string; // Internal code, should be "200"
+  cod: string;
   message: number;
-  cnt: number; // Number of 3-hour data points (should be 40)
+  cnt: number;
   list: ForecastListItem[];
   city: City;
 }
-export interface Homepage {
-  search?: string;
-  finalDailyForecasts: ForecastListItem[] | undefined;
-  timezoneOffset: number | undefined;
-  firstData?: ForecastListItem;
-  formatLocalTime: (utcTimestamp: number, timezoneOffset: number) => string;
-  formatDayName: (utcTimestamp: number, timezoneOffset: number) => string;
-  formatFullDate: (utcTimestamp: number, timezoneOffset: number) => string;
-}
-const apiKey = process.env.NEXT_PUBLIC_WEATHER_API;
-export default function Home(props: Homepage) {
+
+// --- Utilities ---
+const formatDayName = (
+  utcTimestamp: number,
+  timezoneOffset: number
+): string => {
+  const date = new Date((utcTimestamp + timezoneOffset) * 1000);
+  return date.toLocaleDateString("en-US", {
+    weekday: "long",
+    timeZone: "UTC",
+  });
+};
+
+const formatFullDate = (
+  utcTimestamp: number,
+  timezoneOffset: number
+): string => {
+  const date = new Date((utcTimestamp + timezoneOffset) * 1000);
+  return date
+    .toLocaleDateString("en-GB", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      timeZone: "UTC",
+    })
+    .replace(/\//g, ".");
+};
+
+const getFilteredDailyForecasts = (
+  data: ForecastListItem[],
+  timezoneOffset: number
+): ForecastListItem[] => {
+  const uniqueDays = new Set<string>();
+  return data
+    .filter((item) => {
+      const currentDay = formatDayName(item.dt, timezoneOffset);
+      const isFirstDay = uniqueDays.size === 0;
+      const isNoon = item.dt_txt.includes("12:00:00");
+      const isNewDay = !uniqueDays.has(currentDay);
+
+      if (isFirstDay || (isNoon && isNewDay)) {
+        uniqueDays.add(currentDay);
+        return true;
+      }
+      return false;
+    })
+    .slice(0, 7);
+};
+
+// --- Main Component ---
+export default function Home() {
   const [place, setPlace] = useAtom(placeAtom);
-  const [_, setLoadCity] = useAtom(loadingCityAtom);
+  const [, setLoadCity] = useAtom(loadingCityAtom);
   const [isLoadingLocation, setIsLoadingLocation] = useAtom(
     isLoadingLocationAtom
   );
+
+  const apiKey = process.env.NEXT_PUBLIC_WEATHER_API;
+
   const { isPending, error, data, refetch } = useQuery<ForecastResponse>({
-    queryKey: ["repoData"],
+    queryKey: ["forecast", place],
     queryFn: async () => {
       const { data } = await axios.get(
         `https://api.openweathermap.org/data/2.5/forecast?q=${place}&appid=${apiKey}`
       );
       return data;
     },
+    enabled: !!place,
   });
-  useEffect(() => {
-    refetch();
-    setLoadCity(false);
-    setTimeout(() => {
-      setLoadCity(false);
-    }, 500);
-    if (!place && !isLoadingLocation) {
-      setIsLoadingLocation(true);
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(async (position) => {
-          const { latitude, longitude } = position.coords;
-          try {
-            setLoadCity(true);
-            const response = await axios.get(
-              `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=${apiKey}`
-            );
-            setPlace(response.data.name);
-            setIsLoadingLocation(false);
-            setTimeout(() => {
-              setLoadCity(false);
-            }, 500);
-          } catch (error) {
-            setIsLoadingLocation(false);
-            setLoadCity(false);
-          }
-        });
-      } else {
-        setIsLoadingLocation(false);
-      }
-      refetch();
+
+  const initializeLocation = useCallback(async () => {
+    if (place || isLoadingLocation) return;
+
+    setIsLoadingLocation(true);
+    if (!navigator.geolocation) {
+      setIsLoadingLocation(false);
+      return;
     }
-  }, [place, refetch]);
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        try {
+          setLoadCity(true);
+          const response = await axios.get(
+            `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=${apiKey}`
+          );
+          setPlace(response.data.name);
+        } catch (err) {
+          console.error("Geolocation error:", err);
+        } finally {
+          setIsLoadingLocation(false);
+          setLoadCity(false);
+        }
+      },
+      () => setIsLoadingLocation(false)
+    );
+  }, [
+    place,
+    isLoadingLocation,
+    setPlace,
+    setLoadCity,
+    setIsLoadingLocation,
+    apiKey,
+  ]);
+
+  useEffect(() => {
+    initializeLocation();
+  }, [initializeLocation]);
+
+  useEffect(() => {
+    setLoadCity(false);
+  }, [data, setLoadCity]);
+
   const firstData = data?.list[0];
-  console.log("data", data?.city.name);
+  const timezoneOffset = data?.city.timezone ?? 0;
+  const dailyForecasts = useMemo(
+    () => (data ? getFilteredDailyForecasts(data.list, timezoneOffset) : []),
+    [data, timezoneOffset]
+  );
 
-  const formatDayName = (
-    utcTimestamp: number,
-    timezoneOffset: number
-  ): string => {
-    const localMilliseconds = (utcTimestamp + timezoneOffset) * 1000;
-    const date = new Date(localMilliseconds);
+  if (isPending) return <h2 className="loading">Loading</h2>;
+  if (isLoadingLocation)
+    return <h2 className="loading">Fetching location...</h2>;
+  if (error) {
+    return (
+      <h1 className="network-error">
+        Network error. Try again or refresh page. Check your internet
+        connection.
+      </h1>
+    );
+  }
 
-    return date.toLocaleDateString("en-US", {
-      weekday: "long", // Long weekday name to match EEEE
-      timeZone: "UTC",
-    });
-  };
-  const formatFullDate = (
-    utcTimestamp: number,
-    timezoneOffset: number
-  ): string => {
-    const localMilliseconds = (utcTimestamp + timezoneOffset) * 1000;
-    const date = new Date(localMilliseconds);
-    return date
-      .toLocaleDateString("en-GB", {
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        timeZone: "UTC",
-      })
-      .replace(/\//g, ".");
-  };
-  const timezoneOffset = data?.city.timezone;
-  const uniqueDays = new Set<string>();
-  const finalDailyForecasts = data?.list
-    .filter((item) => {
-      const currentDay = formatDayName(item.dt, props.timezoneOffset ?? 0);
-      if (uniqueDays.size === 0 && uniqueDays.add(currentDay)) {
-        return true;
-      }
- const isNoon = item.dt_txt.includes("12:00:00");
-
-      if (isNoon && !uniqueDays.has(currentDay) && uniqueDays.add(currentDay)) {
-        return true;
-      }
-
-      return false;
-    })
-    .slice(0, 7); // Ensure a maximum of 5 days
+  if (!data || !firstData) return null;
 
   return (
-    <>
-      {isPending ? (
-        <h2 className="loading">Loading</h2>
-      ) : isLoadingLocation ? (
-        <h2 className="loading">Fetching location...</h2>
-      ) : (
-        <>
-          {error ? (
-            <h1 className="network-error">
-              Network error, Try again or refresh page. Also check your internet
-              connection;
-            </h1>
-          ) : (
-            <div className="weather">
-              <NavBar location={data?.city.name} />
-              <main>
-                <section>
-                  <header>
-                    <span>
-                      {format(parseISO(firstData?.dt_txt ?? ""), "EEEE")}
-                    </span>
-                    <span>
-                      {format(parseISO(firstData?.dt_txt ?? ""), "dd.MM.yyyy")}
-                    </span>
-                  </header>
-                  <Container className="container">
-                    <div className="container-inner">
-                      <div className="left">
-                        <span className="big">
-                          {convertKelToCels(firstData?.main.temp ?? 0)}°
-                        </span>
-                        <p className="feels-like">
-                          <span>Feels like</span>
-                          <span>
-                            {convertKelToCels(firstData?.main.feels_like ?? 0)}°
-                          </span>
-                        </p>
-                        <p className="min-max">
-                          <span>
-                            {convertKelToCels(firstData?.main.temp_min ?? 0)}°
-                            <BiArrowFromTop />
-                          </span>
-                          <span>
-                            {convertKelToCels(firstData?.main.temp_max ?? 0)}°
-                            <BiArrowFromBottom />
-                          </span>
-                        </p>
-                      </div>
-                      <div className="right">
-                        <div className="right-inner">
-                          {data?.list.map((d, i) => {
-                            return (
-                              <div key={i} className="weather-details">
-                                <p>{format(parseISO(d.dt_txt), "h:mm a")}</p>
-                                <div className="image-container">
-                                  <WeatherIcon
-                                    iconName={getDayorNightIcon(
-                                      d.weather[0].icon,
-                                      d.dt_txt
-                                    )}
-                                  />
-                                </div>
-                                <p>{convertKelToCels(d?.main.temp ?? 0)}°</p>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  </Container>
-                  <div className="container">
-                    <div className="container-inner">
-                      <Container className="left">
-                        <p className="first">
-                          {firstData?.weather[0].description}
-                        </p>
-                        <div className="image-container">
-                          <WeatherIcon
-                            iconName={getDayorNightIcon(
-                              firstData?.weather[0].icon ?? "",
-                              firstData?.dt_txt ?? ""
-                            )}
-                          />
-                        </div>
-                      </Container>
-                      <Container className="weather-details-container">
-                        <div className="weather-details-container-inner">
-                          <WeatherDetails
-                            visability={metersToKilometers(
-                              firstData?.visibility ?? 10000
-                            )}
-                            airpressure={`${firstData?.main.pressure} hpa`}
-                            humidity={`${firstData?.main.humidity}%`}
-                            sunrise={`${format(
-                              fromUnixTime(data?.city.sunrise ?? 111111),
-                              "H:mm"
-                            )}`}
-                            sunset={`${format(
-                              fromUnixTime(data?.city.sunset ?? 111111),
-                              "H:mm"
-                            )}`}
-                            windspeed={converWindSpeed(
-                              firstData?.wind.speed ?? 0
-                            )}
-                          />
-                        </div>
-                      </Container>
-                    </div>
-                  </div>
-                </section>
-                <section>
-                  <header>
-                    <span> Forecast</span> <span>(7 Days)</span>
-                  </header>
-                  {finalDailyForecasts?.map((d, i) => (
-                    <ForeCastWeatherDetail
-                      key={i}
-                      weatherIcon={getDayorNightIcon(
-                        d.weather[0].icon,
-                        d.dt_txt
+    <div className="weather">
+      <NavBar location={data.city.name} />
+      <main>
+        <CurrentWeatherSection
+          firstData={firstData}
+          data={data}
+          timezoneOffset={timezoneOffset}
+        />
+        <ForecastSection
+          dailyForecasts={dailyForecasts}
+          timezoneOffset={timezoneOffset}
+          data={data}
+        />
+      </main>
+    </div>
+  );
+}
+
+// --- Sub Components ---
+function CurrentWeatherSection({
+  firstData,
+  data,
+  timezoneOffset,
+}: {
+  firstData: ForecastListItem;
+  data: ForecastResponse;
+  timezoneOffset: number;
+}) {
+  return (
+    <section>
+      <header>
+        <span>{format(parseISO(firstData.dt_txt), "EEEE")}</span>
+        <span>{format(parseISO(firstData.dt_txt), "dd.MM.yyyy")}</span>
+      </header>
+      <Container className="container">
+        <div className="container-inner">
+          <div className="left">
+            <span className="big">
+              {convertKelToCels(firstData.main.temp)}°
+            </span>
+            <p className="feels-like">
+              <span>Feels like</span>
+              <span>{convertKelToCels(firstData.main.feels_like)}°</span>
+            </p>
+            <p className="min-max">
+              <span>
+                {convertKelToCels(firstData.main.temp_min)}° <BiArrowFromTop />
+              </span>
+              <span>
+                {convertKelToCels(firstData.main.temp_max)}°{" "}
+                <BiArrowFromBottom />
+              </span>
+            </p>
+          </div>
+          <div className="right">
+            <div className="right-inner">
+              {data.list.map((item, idx) => (
+                <div key={idx} className="weather-details">
+                  <p>{format(parseISO(item.dt_txt), "h:mm a")}</p>
+                  <div className="image-container">
+                    <WeatherIcon
+                      iconName={getDayorNightIcon(
+                        item.weather[0].icon,
+                        item.dt_txt
                       )}
-                      date={formatFullDate(d.dt, timezoneOffset ?? 0)}
-                      day={formatDayName(d.dt, timezoneOffset ?? 0)}
-                      temp={d.main.temp}
-                      feels_like={d.main.feels_like}
-                      temp_min={d.main.temp_min}
-                      temp_max={d.main.temp_max}
-                      description={d.weather[0].description}
-                      visability={metersToKilometers(d.visibility ?? 10000)}
-                      airpressure={`${d.main.pressure} hpa`}
-                      humidity={`${d.main.humidity}%`}
-                      sunrise={`${format(
-                        fromUnixTime(data?.city.sunrise ?? 111111),
-                        "H:mm"
-                      )}`}
-                      sunset={`${format(
-                        fromUnixTime(data?.city.sunset ?? 111111),
-                        "H:mm"
-                      )}`}
-                      windspeed={converWindSpeed(d.wind.speed ?? 0)}
                     />
-                  ))}
-                </section>
-              </main>
+                  </div>
+                  <p>{convertKelToCels(item.main.temp)}°</p>
+                </div>
+              ))}
             </div>
-          )}
-        </>
-      )}
-    </>
+          </div>
+        </div>
+      </Container>
+      <div className="container">
+        <div className="container-inner">
+          <Container className="left">
+            <p className="first">{firstData.weather[0].description}</p>
+            <div className="image-container">
+              <WeatherIcon
+                iconName={getDayorNightIcon(
+                  firstData.weather[0].icon,
+                  firstData.dt_txt
+                )}
+              />
+            </div>
+          </Container>
+          <Container className="weather-details-container">
+            <div className="weather-details-container-inner">
+              <WeatherDetails
+                visability={metersToKilometers(firstData.visibility)}
+                airpressure={`${firstData.main.pressure} hpa`}
+                humidity={`${firstData.main.humidity}%`}
+                sunrise={format(fromUnixTime(data.city.sunrise), "H:mm")}
+                sunset={format(fromUnixTime(data.city.sunset), "H:mm")}
+                windspeed={converWindSpeed(firstData.wind.speed)}
+              />
+            </div>
+          </Container>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ForecastSection({
+  dailyForecasts,
+  timezoneOffset,
+  data,
+}: {
+  dailyForecasts: ForecastListItem[];
+  timezoneOffset: number;
+  data: ForecastResponse;
+}) {
+  return (
+    <section>
+      <header>
+        <span>Forecast</span>
+        <span>(7 Days)</span>
+      </header>
+      {dailyForecasts.map((item, idx) => (
+        <ForeCastWeatherDetail
+          key={idx}
+          weatherIcon={getDayorNightIcon(item.weather[0].icon, item.dt_txt)}
+          date={formatFullDate(item.dt, timezoneOffset)}
+          day={formatDayName(item.dt, timezoneOffset)}
+          temp={item.main.temp}
+          feels_like={item.main.feels_like}
+          temp_min={item.main.temp_min}
+          temp_max={item.main.temp_max}
+          description={item.weather[0].description}
+          visability={metersToKilometers(item.visibility)}
+          airpressure={`${item.main.pressure} hpa`}
+          humidity={`${item.main.humidity}%`}
+          sunrise={format(fromUnixTime(data.city.sunrise), "H:mm")}
+          sunset={format(fromUnixTime(data.city.sunset), "H:mm")}
+          windspeed={converWindSpeed(item.wind.speed)}
+        />
+      ))}
+    </section>
   );
 }
