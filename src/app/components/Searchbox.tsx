@@ -1,27 +1,38 @@
-import cn from "@/utils/cn";
-import React from "react";
+import { cn } from "@/utils/cn";
 import { FaSearch } from "react-icons/fa";
-type Props = {
-  className: string;
+
+interface SearchBoxProps {
+  className?: string;
   value: string;
-  onChange: React.ChangeEventHandler<HTMLInputElement> | undefined;
-  onSubmit: React.FormEventHandler<HTMLFormElement> | undefined;
-};
-export default function SearchBox(props: Props) {
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
+}
+
+export default function SearchBox({
+  className,
+  value,
+  onChange,
+  onSubmit,
+}: SearchBoxProps) {
   return (
     <form
-      action=""
-      className={cn("", props.className)}
-      onSubmit={props.onSubmit}
+      className={cn("flex items-center gap-2", className)}
+      onSubmit={onSubmit}
     >
       <input
         type="text"
         placeholder="Search Location"
-        value={props.value}
-        onChange={props.onChange}
+        value={value}
+        onChange={onChange}
+        className="flex-1 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+        aria-label="Search location"
       />
-      <button className="">
-        <FaSearch className="search" />
+      <button
+        type="submit"
+        className="p-2 hover:bg-gray-100 rounded transition focus:outline-none focus:ring-2 focus:ring-blue-500"
+        aria-label="Search"
+      >
+        <FaSearch className="w-5 h-5" />
       </button>
     </form>
   );

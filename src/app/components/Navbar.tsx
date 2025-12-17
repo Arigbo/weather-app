@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import { IoMdLocate } from "react-icons/io";
 import { IoLocation } from "react-icons/io5";
 import { MdSunny } from "react-icons/md";
@@ -8,75 +8,96 @@ import axios from "axios";
 import { useAtom } from "jotai";
 import { loadingCityAtom, placeAtom } from "../atoms";
 
+const API_BASE = "https://api.openweathermap.org/data/2.5";
+const DEBOUNCE_DELAY = 500;
+const MIN_SEARCH_LENGTH = 3;
+
 export default function NavBar({ location }: { location?: string }) {
   const [city, setCity] = useState("");
   const [error, setError] = useState("");
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [place, setPlace] = useAtom(placeAtom);
-  const [_, setLoadCity] = useAtom(loadingCityAtom);
+  const [, setLoadCity] = useAtom(loadingCityAtom);
   const apiKey = process.env.NEXT_PUBLIC_WEATHER_API;
-  async function handleInput(value: string) {
-    setCity(value);
-    if (value.length >= 3) {
+
+  const handleInput = useCallback(
+    async (value: string) => {
+      setCity(value);
+      if (value.length < MIN_SEARCH_LENGTH) {
+        setSuggestions([]);
+        setShowSuggestions(false);
+        setError("");
+        return;
+      }
+
       try {
-        const response = await axios.get(
-          `https://api.openweathermap.org/data/2.5/find?q=${value}&appid=${apiKey}`
+        const { data } = await axios.get(
+          `${API_BASE}/find?q=${value}&appid=${apiKey}`
         );
-        const suggestions = response.data?.list.map((item: any) => item.name);
-        setSuggestions(suggestions);
+        setSuggestions(data?.list?.map((item: any) => item.name) ?? []);
         setError("");
         setShowSuggestions(true);
-      } catch (error: any) {
-        setError(error.message);
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : "Error fetching suggestions";
+        setError(errorMsg);
         setSuggestions([]);
         setShowSuggestions(false);
       }
-    } else {
-      setSuggestions([]);
-      setShowSuggestions(false);
-      setError("");
-    }
-  }
-  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    setLoadCity(true);
-    e.preventDefault();
-    if (suggestions.length == 0) {
-      setError("Location not found");
-      setLoadCity(false);
-    } else {
+    },
+    [apiKey]
+  );
+
+  const handleSubmit = useCallback(
+    (e: React.FormEvent<HTMLFormElement>) => {
+      e.preventDefault();
+      if (!suggestions.length) {
+        setError("Location not found");
+        return;
+      }
+      setLoadCity(true);
       setError("");
       setTimeout(() => {
         setShowSuggestions(false);
         setLoadCity(false);
         setPlace(city);
-      }, 500);
+      }, DEBOUNCE_DELAY);
+    },
+    [suggestions.length, setLoadCity, setPlace, city]
+  );
+
+  const handleCurrentLocation = useCallback(() => {
+    if (!navigator.geolocation) {
+      setError("Geolocation not supported");
+      return;
     }
-  }
-  function onSelectSuggestion(value: string) {
-    setCity(value);
-    setShowSuggestions(false);
-  }
-  function handCurrentLocation() {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(async (position) => {
-        const { latitude, longitude } = position.coords;
+
+    setLoadCity(true);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
         try {
-          setLoadCity(true);
-          const response = await axios.get(
-            `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=${apiKey}`
+          const { latitude, longitude } = position.coords;
+          const { data } = await axios.get(
+            `${API_BASE}/weather?lat=${latitude}&lon=${longitude}&appid=${apiKey}`
           );
           setTimeout(() => {
-            setLoadCity(false)
-            setPlace(response.data.name)
-          }, 500);
-        } catch (error) {
-            setLoadCity(false)
-            setError("Network Error, Refresh or try again")
+            setLoadCity(false);
+            setPlace(data.name);
+          }, DEBOUNCE_DELAY);
+        } catch {
+          setLoadCity(false);
+          setError("Network error. Please try again.");
         }
-      });
-    }
-  }
+      },
+      () => {
+        setLoadCity(false);
+        setError("Failed to get location");
+      }
+    );
+  }, [apiKey, setLoadCity, setPlace]);
+
+  const showError = useMemo(() => !!error && suggestions.length === 0, [error, suggestions.length]);
+
   return (
     <nav className="nav">
       <div className="nav-inner">
@@ -88,10 +109,9 @@ export default function NavBar({ location }: { location?: string }) {
           <IoMdLocate
             className="location"
             title="Your Current Location"
-            onClick={handCurrentLocation}
+            onClick={handleCurrentLocation}
           />
-          <p className="">
-            {" "}
+          <p>
             <IoLocation className="pin" />
             {location}
           </p>
@@ -103,38 +123,47 @@ export default function NavBar({ location }: { location?: string }) {
           />
         </section>
         <SuggestionBox
-          {...{ showSuggestions, suggestions, onSelectSuggestion, error }}
+          showSuggestions={showSuggestions}
+          suggestions={suggestions}
+          onSelectSuggestion={setCity}
+          showError={showError}
+          error={error}
         />
       </div>
-      <div className="error-container">
-        {error && <p className="error-message">{error}</p>}
-      </div>
+      {error && (
+        <div className="error-container">
+          <p className="error-message">{error}</p>
+        </div>
+      )}
     </nav>
   );
 }
+
+interface SuggestionBoxProps {
+  showSuggestions: boolean;
+  suggestions: string[];
+  onSelectSuggestion: (item: string) => void;
+  showError: boolean;
+  error: string;
+}
+
 function SuggestionBox({
   showSuggestions,
   suggestions,
   onSelectSuggestion,
+  showError,
   error,
-}: {
-  showSuggestions: boolean;
-  suggestions: string[];
-  onSelectSuggestion: (item: string) => void;
-  error: string;
-}) {
+}: SuggestionBoxProps) {
+  if (!showSuggestions && !showError) return null;
+
   return (
-    <>
-      {((showSuggestions && suggestions.length > 1) || error) && (
-        <ul className="suggestion-box">
-          {error && suggestions.length < 1 && <li>{error}</li>}
-          {suggestions.map((d, i) => (
-            <li key={i} onClick={() => onSelectSuggestion(d)}>
-              {d}
-            </li>
-          ))}
-        </ul>
-      )}
-    </>
+    <ul className="suggestion-box">
+      {showError && <li>{error}</li>}
+      {suggestions.map((item) => (
+        <li key={item} onClick={() => onSelectSuggestion(item)}>
+          {item}
+        </li>
+      ))}
+    </ul>
   );
 }

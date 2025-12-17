@@ -1,16 +1,21 @@
 import React from "react";
 import Image from "next/image";
-export default function WeatherIcon(
-  props: React.HTMLProps<HTMLDivElement> & { iconName: string }
-) {
+
+interface WeatherIconProps extends React.HTMLProps<HTMLDivElement> {
+  iconName: string;
+}
+
+export default function WeatherIcon({ iconName, ...props }: WeatherIconProps) {
+  const iconUrl = `https://openweathermap.org/img/wn/${iconName}@4x.png`;
+
   return (
-    <div>
+    <div {...props}>
       <Image
-        alt="weather icon"
+        alt="Weather icon"
         className="image"
         width={100}
         height={100}
-        src={`https://openweathermap.org/img/wn/${props.iconName}@4x.png`}
+        src={iconUrl}
       />
     </div>
   );

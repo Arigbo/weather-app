@@ -1,4 +1,5 @@
 "use client"
+import { useState } from "react";
 import "./globals.scss";
 
 import {
@@ -12,7 +13,7 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const queryClient = new QueryClient();
+  const [queryClient] = useState(() => new QueryClient());
   return (
     <html lang="en">
       <QueryClientProvider client={queryClient}>

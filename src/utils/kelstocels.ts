@@ -1,4 +1,3 @@
-export default function convertKelToCels(tempInKelvin:number):number{
-    const tempToCelsius=tempInKelvin-273.15;
-    return Math.floor(tempToCelsius)
+export default function convertKelvinToCelsius(tempInKelvin: number): number {
+    return Math.round(tempInKelvin - 273.15);
 }

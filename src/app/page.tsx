@@ -16,7 +16,7 @@ import { isLoadingLocationAtom, loadingCityAtom, placeAtom } from "./atoms";
 import convertKelToCels from "@/utils/kelstocels";
 import getDayorNightIcon from "@/utils/getDayorNight";
 import { metersToKilometers } from "@/utils/metersToKilometer";
-import { converWindSpeed } from "@/utils/convertwindspeed";
+import { convertWindSpeed } from "@/utils/convertwindspeed";
 
 // --- Types ---
 export interface Coord {
@@ -94,10 +94,7 @@ export interface ForecastResponse {
 }
 
 // --- Utilities ---
-const formatDayName = (
-  utcTimestamp: number,
-  timezoneOffset: number
-): string => {
+const formatDayName = (utcTimestamp: number, timezoneOffset: number): string => {
   const date = new Date((utcTimestamp + timezoneOffset) * 1000);
   return date.toLocaleDateString("en-US", {
     weekday: "long",
@@ -105,10 +102,7 @@ const formatDayName = (
   });
 };
 
-const formatFullDate = (
-  utcTimestamp: number,
-  timezoneOffset: number
-): string => {
+const formatFullDate = (utcTimestamp: number, timezoneOffset: number): string => {
   const date = new Date((utcTimestamp + timezoneOffset) * 1000);
   return date
     .toLocaleDateString("en-GB", {
@@ -141,24 +135,39 @@ const getFilteredDailyForecasts = (
     .slice(0, 7);
 };
 
+// --- API Service ---
+const weatherAPI = {
+  fetchForecast: async (place: string, apiKey?: string) => {
+    const { data } = await axios.get<ForecastResponse>(
+      `https://api.openweathermap.org/data/2.5/forecast?q=${place}&appid=${apiKey}`
+    );
+    return data;
+  },
+  fetchWeatherByCoords: async (lat: number, lon: number, apiKey?: string) => {
+    const { data } = await axios.get(
+      `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${apiKey}`
+    );
+    return data;
+  },
+};
+
 // --- Main Component ---
 export default function Home() {
   const [place, setPlace] = useAtom(placeAtom);
   const [, setLoadCity] = useAtom(loadingCityAtom);
-  const [isLoadingLocation, setIsLoadingLocation] = useAtom(
-    isLoadingLocationAtom
-  );
+  const [isLoadingLocation, setIsLoadingLocation] = useAtom(isLoadingLocationAtom);
+
+  useEffect(() => {
+    if (!place) {
+      setPlace("Republic of India");
+    }
+  }, [place, setPlace]);
 
   const apiKey = process.env.NEXT_PUBLIC_WEATHER_API;
 
-  const { isPending, error, data, refetch } = useQuery<ForecastResponse>({
+  const { isPending, error, data } = useQuery<ForecastResponse>({
     queryKey: ["forecast", place],
-    queryFn: async () => {
-      const { data } = await axios.get(
-        `https://api.openweathermap.org/data/2.5/forecast?q=${place}&appid=${apiKey}`
-      );
-      return data;
-    },
+    queryFn: () => weatherAPI.fetchForecast(place, apiKey),
     enabled: !!place,
   });
 
@@ -173,13 +182,11 @@ export default function Home() {
 
     navigator.geolocation.getCurrentPosition(
       async (position) => {
-        const { latitude, longitude } = position.coords;
         try {
           setLoadCity(true);
-          const response = await axios.get(
-            `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=${apiKey}`
-          );
-          setPlace(response.data.name);
+          const { latitude, longitude } = position.coords;
+          const response = await weatherAPI.fetchWeatherByCoords(latitude, longitude, apiKey);
+          setPlace(response.name);
         } catch (err) {
           console.error("Geolocation error:", err);
         } finally {
@@ -189,14 +196,7 @@ export default function Home() {
       },
       () => setIsLoadingLocation(false)
     );
-  }, [
-    place,
-    isLoadingLocation,
-    setPlace,
-    setLoadCity,
-    setIsLoadingLocation,
-    apiKey,
-  ]);
+  }, [place, isLoadingLocation, setPlace, setLoadCity, setIsLoadingLocation, apiKey]);
 
   useEffect(() => {
     initializeLocation();
@@ -213,49 +213,47 @@ export default function Home() {
     [data, timezoneOffset]
   );
 
-  if (isPending) return <h2 className="loading">Loading</h2>;
-  if (isLoadingLocation)
-    return <h2 className="loading">Fetching location...</h2>;
-  if (error) {
-    return (
-      <h1 className="network-error">
-        Network error. Try again or refresh page. Check your internet
-        connection.
-      </h1>
-    );
-  }
-
+  if (isPending) return <LoadingState message="Loading" />;
+  if (isLoadingLocation) return <LoadingState message="Fetching location..." />;
+  if (error) return <ErrorState />;
   if (!data || !firstData) return null;
 
   return (
     <div className="weather">
       <NavBar location={data.city.name} />
-      <main>
-        <CurrentWeatherSection
-          firstData={firstData}
-          data={data}
-          timezoneOffset={timezoneOffset}
-        />
-        <ForecastSection
-          dailyForecasts={dailyForecasts}
-          timezoneOffset={timezoneOffset}
-          data={data}
-        />
+      <main className="animate-fade-in">
+        <CurrentWeatherSection firstData={firstData} data={data} timezoneOffset={timezoneOffset} />
+        <ForecastSection dailyForecasts={dailyForecasts} timezoneOffset={timezoneOffset} data={data} />
       </main>
     </div>
   );
 }
 
+// --- State Components ---
+function LoadingState({ message }: { message: string }) {
+  return <h2 className="loading">{message}</h2>;
+}
+
+function ErrorState() {
+  return (
+    <h1 className="network-error">
+      Network error. Try again or refresh page. Check your internet connection.
+    </h1>
+  );
+}
+
 // --- Sub Components ---
+interface CurrentWeatherSectionProps {
+  firstData: ForecastListItem;
+  data: ForecastResponse;
+  timezoneOffset: number;
+}
+
 function CurrentWeatherSection({
   firstData,
   data,
   timezoneOffset,
-}: {
-  firstData: ForecastListItem;
-  data: ForecastResponse;
-  timezoneOffset: number;
-}) {
+}: CurrentWeatherSectionProps) {
   return (
     <section>
       <header>
@@ -264,84 +262,94 @@ function CurrentWeatherSection({
       </header>
       <Container className="container">
         <div className="container-inner">
-          <div className="left">
-            <span className="big">
-              {convertKelToCels(firstData.main.temp)}°
-            </span>
-            <p className="feels-like">
-              <span>Feels like</span>
-              <span>{convertKelToCels(firstData.main.feels_like)}°</span>
-            </p>
-            <p className="min-max">
-              <span>
-                {convertKelToCels(firstData.main.temp_min)}° <BiArrowFromTop />
-              </span>
-              <span>
-                {convertKelToCels(firstData.main.temp_max)}°{" "}
-                <BiArrowFromBottom />
-              </span>
-            </p>
-          </div>
-          <div className="right">
-            <div className="right-inner">
-              {data.list.map((item, idx) => (
-                <div key={idx} className="weather-details">
-                  <p>{format(parseISO(item.dt_txt), "h:mm a")}</p>
-                  <div className="image-container">
-                    <WeatherIcon
-                      iconName={getDayorNightIcon(
-                        item.weather[0].icon,
-                        item.dt_txt
-                      )}
-                    />
-                  </div>
-                  <p>{convertKelToCels(item.main.temp)}°</p>
-                </div>
-              ))}
-            </div>
-          </div>
+          <CurrentWeatherLeft firstData={firstData} />
+          <CurrentWeatherRight list={data.list} />
         </div>
       </Container>
-      <div className="container">
-        <div className="container-inner">
-          <Container className="left">
-            <p className="first">{firstData.weather[0].description}</p>
-            <div className="image-container">
-              <WeatherIcon
-                iconName={getDayorNightIcon(
-                  firstData.weather[0].icon,
-                  firstData.dt_txt
-                )}
-              />
-            </div>
-          </Container>
-          <Container className="weather-details-container">
-            <div className="weather-details-container-inner">
-              <WeatherDetails
-                visability={metersToKilometers(firstData.visibility)}
-                airpressure={`${firstData.main.pressure} hpa`}
-                humidity={`${firstData.main.humidity}%`}
-                sunrise={format(fromUnixTime(data.city.sunrise), "H:mm")}
-                sunset={format(fromUnixTime(data.city.sunset), "H:mm")}
-                windspeed={converWindSpeed(firstData.wind.speed)}
-              />
-            </div>
-          </Container>
-        </div>
-      </div>
+      <WeatherDetailsSection firstData={firstData} data={data} />
     </section>
   );
 }
 
-function ForecastSection({
-  dailyForecasts,
-  timezoneOffset,
-  data,
-}: {
+function CurrentWeatherLeft({ firstData }: { firstData: ForecastListItem }) {
+  return (
+    <div className="left">
+      <span className="big">{convertKelToCels(firstData.main.temp)}°</span>
+      <p className="feels-like">
+        <span>Feels like</span>
+        <span>{convertKelToCels(firstData.main.feels_like)}°</span>
+      </p>
+      <p className="min-max">
+        <span>
+          {convertKelToCels(firstData.main.temp_min)}° <BiArrowFromTop />
+        </span>
+        <span>
+          {convertKelToCels(firstData.main.temp_max)}° <BiArrowFromBottom />
+        </span>
+      </p>
+    </div>
+  );
+}
+
+function CurrentWeatherRight({ list }: { list: ForecastListItem[] }) {
+  return (
+    <div className="right">
+      <div className="right-inner">
+        {list.map((item, idx) => (
+          <div key={idx} className="weather-details">
+            <p>{format(parseISO(item.dt_txt), "h:mm a")}</p>
+            <div className="image-container">
+              <WeatherIcon iconName={getDayorNightIcon(item.weather[0].icon, item.dt_txt)} />
+            </div>
+            <p>{convertKelToCels(item.main.temp)}°</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+interface WeatherDetailsSectionProps {
+  firstData: ForecastListItem;
+  data: ForecastResponse;
+}
+
+function WeatherDetailsSection({ firstData, data }: WeatherDetailsSectionProps) {
+  return (
+    <div className="container">
+      <div className="container-inner">
+        <Container className="left">
+          <p className="first">{firstData.weather[0].description}</p>
+          <div className="image-container">
+            <WeatherIcon
+              iconName={getDayorNightIcon(firstData.weather[0].icon, firstData.dt_txt)}
+            />
+          </div>
+        </Container>
+        <Container className="weather-details-container">
+          <div className="weather-details-container-inner">
+            <WeatherDetails
+              visibility={metersToKilometers(firstData.visibility)}
+              airPressure={`${firstData.main.pressure} hpa`}
+              humidity={`${firstData.main.humidity}%`}
+              sunrise={format(fromUnixTime(data.city.sunrise), "H:mm")}
+              sunset={format(fromUnixTime(data.city.sunset), "H:mm")}
+              windSpeed={convertWindSpeed(firstData.wind.speed)}
+            />
+          </div>
+        </Container>
+      </div>
+    </div>
+  );
+}
+
+interface ForecastSectionProps {
   dailyForecasts: ForecastListItem[];
   timezoneOffset: number;
   data: ForecastResponse;
-}) {
+}
+
+function ForecastSection({ dailyForecasts, timezoneOffset, data }: ForecastSectionProps) {
   return (
     <section>
       <header>
@@ -350,7 +358,7 @@ function ForecastSection({
       </header>
       {dailyForecasts.map((item, idx) => (
         <ForeCastWeatherDetail
-          key={idx}
+          key={item.dt}
           weatherIcon={getDayorNightIcon(item.weather[0].icon, item.dt_txt)}
           date={formatFullDate(item.dt, timezoneOffset)}
           day={formatDayName(item.dt, timezoneOffset)}
@@ -359,12 +367,12 @@ function ForecastSection({
           temp_min={item.main.temp_min}
           temp_max={item.main.temp_max}
           description={item.weather[0].description}
-          visability={metersToKilometers(item.visibility)}
-          airpressure={`${item.main.pressure} hpa`}
+          visibility={metersToKilometers(item.visibility)}
+          airPressure={`${item.main.pressure} hpa`}
           humidity={`${item.main.humidity}%`}
           sunrise={format(fromUnixTime(data.city.sunrise), "H:mm")}
           sunset={format(fromUnixTime(data.city.sunset), "H:mm")}
-          windspeed={converWindSpeed(item.wind.speed)}
+          windSpeed={convertWindSpeed(item.wind.speed)}
         />
       ))}
     </section>
